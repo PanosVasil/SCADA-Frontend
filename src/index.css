@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 189 94% 43%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 189 94% 43%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 189 94% 43%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 189 94% 43%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 189 94% 43%;
+
+    /* SCADA specific tokens */
+    --status-connected: 142 71% 45%;
+    --status-warning: 38 92% 50%;
+    --status-error: 0 84% 60%;
+    --status-disconnected: 215 16% 47%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(189 94% 43%), hsl(200 94% 50%));
+    --gradient-dark: linear-gradient(180deg, hsl(222 47% 11%), hsl(222 47% 8%));
+    
+    --shadow-glow: 0 0 20px hsl(189 94% 43% / 0.3);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 189 94% 43%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 18%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 189 94% 43%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 189 94% 43%;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 189 94% 43%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 18%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 15%;
+    --sidebar-ring: 189 94% 43%;
+
+    --status-connected: 142 71% 45%;
+    --status-warning: 38 92% 50%;
+    --status-error: 0 84% 60%;
+    --status-disconnected: 215 20% 65%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(189 94% 43%), hsl(200 94% 50%));
+    --gradient-dark: linear-gradient(180deg, hsl(222 47% 11%), hsl(222 47% 8%));
+    
+    --shadow-glow: 0 0 30px hsl(189 94% 43% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .text-status-connected {
+    color: hsl(var(--status-connected));
+  }
+  .text-status-warning {
+    color: hsl(var(--status-warning));
+  }
+  .text-status-error {
+    color: hsl(var(--status-error));
+  }
+  .text-status-disconnected {
+    color: hsl(var(--status-disconnected));
+  }
+  
+  .bg-status-connected {
+    background-color: hsl(var(--status-connected));
+  }
+  .bg-status-warning {
+    background-color: hsl(var(--status-warning));
+  }
+  .bg-status-error {
+    background-color: hsl(var(--status-error));
+  }
+  .bg-status-disconnected {
+    background-color: hsl(var(--status-disconnected));
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-flash-green {
+    animation: flash-green 0.5s ease-in-out;
+  }
+
+  .animate-flash-red {
+    animation: flash-red 0.5s ease-in-out;
+  }
+
+  @keyframes flash-green {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: hsl(var(--status-connected) / 0.2); }
+  }
+
+  @keyframes flash-red {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: hsl(var(--status-error) / 0.2); }
+  }
+}
