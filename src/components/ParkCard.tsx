@@ -1,4 +1,5 @@
 // src/components/ParkCard.tsx
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -8,15 +9,32 @@ import { toast } from "sonner";
 import { apiService } from "@/services/api";
 import type { ParkDashboardView } from "@/lib/telemetryTransform";
 import { DASHBOARD_LABELS } from "@/lib/telemetryTransform";
+import React from "react";
 
 export default function ParkCard({ park }: { park: ParkDashboardView }) {
-  // Treat park permission as "write-enabled"
+  console.log("ParkCard received telemetry update for", park.name, park.metrics.cmdSetpointKw);
+
   const { isSuperuser } = useAuth();
-  const canWrite = true; // <-- user with park access has full rights
+  const canWrite = true;
+
   const m = park.metrics;
 
-  // value can be number | boolean | string | boolean[]
-  async function write(node: string, value: any) {
+  /* -------------------------------------------------------
+     OPTIMISTIC UI STATE FOR INSTANT CUTOFF
+  ------------------------------------------------------- */
+  const [pendingCutoff, setPendingCutoff] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (pendingCutoff === null) return;
+    if (m.cmdInstantCutoff === pendingCutoff) {
+      setPendingCutoff(null);
+    }
+  }, [m.cmdInstantCutoff, pendingCutoff]);
+
+  /* -------------------------------------------------------
+     GENERIC WRITE WRAPPER
+  ------------------------------------------------------- */
+  async function write(node: string, value: any): Promise<boolean> {
     try {
       await apiService.writeValue({
         plc_url: park.url,
@@ -24,8 +42,10 @@ export default function ParkCard({ park }: { park: ParkDashboardView }) {
         value,
       });
       toast.success("Command sent");
+      return true;
     } catch (e: any) {
       toast.error(e?.message ?? "Failed");
+      return false;
     }
   }
 
@@ -36,6 +56,9 @@ export default function ParkCard({ park }: { park: ParkDashboardView }) {
       ? "bg-red-500"
       : "bg-yellow-500";
 
+  const effectiveCutoff = pendingCutoff ?? (m.cmdInstantCutoff ?? false);
+  const isCutoffPending = pendingCutoff !== null;
+
   return (
     <Card className="shadow-md">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -45,86 +68,72 @@ export default function ParkCard({ park }: { park: ParkDashboardView }) {
 
       <CardContent className="grid grid-cols-2 gap-4 text-sm">
         {/* -------- Measurements -------- */}
-        <Metric
-          label={DASHBOARD_LABELS.activePower}
-          value={m.activePowerKw}
-          unit="kW"
-        />
-        <Metric
-          label={DASHBOARD_LABELS.reactivePower}
-          value={m.reactivePowerKvar}
-          unit="kVAr"
-        />
-        <Metric
-          label={DASHBOARD_LABELS.avgCurrent}
-          value={m.avgCurrentA}
-          unit="A"
-        />
-        <Metric
-          label={DASHBOARD_LABELS.avgVoltage}
-          value={m.avgVoltageKv}
-          unit="kV"
-        />
-        <Metric
-          label={DASHBOARD_LABELS.frequency}
-          value={m.frequencyHz}
-          unit="Hz"
-        />
-        <Metric
-          label={DASHBOARD_LABELS.powerFactor}
-          value={m.powerFactor}
-        />
-        <Metric
-          label={DASHBOARD_LABELS.maxCapacity}
-          value={m.maxProductionCapacity}
-        />
+        <Metric label={DASHBOARD_LABELS.activePower} value={m.activePowerKw} unit="kW" />
+        <Metric label={DASHBOARD_LABELS.reactivePower} value={m.reactivePowerKvar} unit="kVAr" />
+        <Metric label={DASHBOARD_LABELS.avgCurrent} value={m.avgCurrentA} unit="A" />
+        <Metric label={DASHBOARD_LABELS.avgVoltage} value={m.avgVoltageKv} unit="kV" />
+        <Metric label={DASHBOARD_LABELS.frequency} value={m.frequencyHz} unit="Hz" />
+        <Metric label={DASHBOARD_LABELS.powerFactor} value={m.powerFactor} />
+        <Metric label={DASHBOARD_LABELS.maxCapacity} value={m.maxProductionCapacity} />
 
         {/* -------- CB Status -------- */}
         <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground">
-            {DASHBOARD_LABELS.cbStatus}
-          </span>
+          <span className="text-xs text-muted-foreground">{DASHBOARD_LABELS.cbStatus}</span>
           <span className="font-medium">{m.cbStatus}</span>
         </div>
 
         {/* -------- Write/Commands -------- */}
         {canWrite && (
           <>
-            <CommandNumber
+            <OptimisticSetpoint
               label={DASHBOARD_LABELS.setpointKw}
-              value={m.cmdSetpointKw}
+              node="CMD_Active_Power_Setpoint_kW"
+              telemetryValue={m.cmdSetpointKw}
               unit="kW"
-              onApply={(v) =>
-                write("CMD_Active_Power_Setpoint_kW", Number(v))
-              }
-            />
-            <CommandNumber
-              label={DASHBOARD_LABELS.setpointPct}
-              value={m.cmdSetpointPercent}
-              unit="%"
-              onApply={(v) =>
-                write("CMD_Active_Power_Setpoint_%", Number(v))
-              }
+              onSend={write}
             />
 
-            {/* Instant Cutoff – encoded as string "[False, True]" / "[True, False]" */}
+            {/* ---- PERCENT SETPOINT WITH RANGE CHECK ---- */}
+            <OptimisticSetpoint
+              label={DASHBOARD_LABELS.setpointPct}
+              node="CMD_Active_Power_Setpoint_%"
+              telemetryValue={m.cmdSetpointPercent}
+              unit="%"
+              onSend={async (node, value) => {
+                if (value < 0 || value > 100) {
+                  toast.error("Value must be between 0 and 100%");
+                  return false;
+                }
+                return write(node, value);
+              }}
+            />
+
+            {/* -------- Instant Cutoff -------- */}
             <div className="col-span-2 flex items-center justify-between bg-muted/30 px-3 py-2 rounded-lg border border-border/40">
-              <span className="text-base font-semibold text-muted-foreground tracking-wide">
-                {DASHBOARD_LABELS.cutoff}
-              </span>
+              <div className="flex flex-col">
+                <span className="text-base font-semibold text-muted-foreground tracking-wide">
+                  {DASHBOARD_LABELS.cutoff}
+                </span>
+                {isCutoffPending && (
+                  <span className="text-xs text-amber-500">Pending confirmation…</span>
+                )}
+              </div>
 
               <Switch
-                checked={m.cmdInstantCutoff ?? false}
+                checked={effectiveCutoff}
+                disabled={isCutoffPending}
                 onCheckedChange={(checked) => {
-                  // Real PLC mapping (confirmed by your test):
-                  //   [True,  False] -> park ON  (cutoff OFF)
-                  //   [False, True]  -> park OFF (cutoff ON)
+                  const desired = checked;
 
-                  const payload = checked
-                    ? [false, true]   // switch ON  -> cutoff ON  -> park OFF
-                    : [true, false];  // switch OFF -> cutoff OFF -> park ON
+                  const payload = desired
+                    ? [false, true]
+                    : [true, false];
 
-                  write("CMD_Instant_Cutoff", payload);
+                  setPendingCutoff(desired);
+
+                  void write("CMD_Instant_Cutoff", payload).then((ok) => {
+                    if (!ok) setPendingCutoff(null);
+                  });
                 }}
                 className="scale-110"
               />
@@ -139,9 +148,7 @@ export default function ParkCard({ park }: { park: ParkDashboardView }) {
             variant="outline"
             className="w-full"
             onClick={() =>
-              (window.location.href = `/telemetry?park=${encodeURIComponent(
-                park.url
-              )}`)
+              (window.location.href = `/telemetry?park=${encodeURIComponent(park.url)}`)
             }
           >
             View Details
@@ -152,6 +159,9 @@ export default function ParkCard({ park }: { park: ParkDashboardView }) {
   );
 }
 
+/* -------------------------------------------------------
+   METRIC DISPLAY
+------------------------------------------------------- */
 function Metric({
   label,
   value,
@@ -171,18 +181,30 @@ function Metric({
   );
 }
 
-function CommandNumber({
+/* -------------------------------------------------------
+   OPTIMISTIC SETPOINT INPUT
+------------------------------------------------------- */
+function OptimisticSetpoint({
   label,
-  value,
-  onApply,
+  node,
+  telemetryValue,
+  onSend,
   unit,
 }: {
   label: string;
-  value: number | null;
-  onApply: (v: number) => void;
+  node: string;
+  telemetryValue: number | null;
+  onSend: (node: string, value: any) => Promise<boolean>;
   unit?: string;
 }) {
-  let inputValue = value ?? 0;
+  const [value, setValue] = React.useState(telemetryValue ?? 0);
+  const [pending, setPending] = React.useState(false);
+
+  useEffect(() => {
+    if (!pending) {
+      setValue(telemetryValue ?? 0);
+    }
+  }, [telemetryValue, pending]);
 
   return (
     <div className="flex flex-col space-y-1 col-span-1">
@@ -190,17 +212,36 @@ function CommandNumber({
       <div className="flex gap-2">
         <input
           type="number"
-          defaultValue={inputValue}
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
           className="border rounded p-1 w-full bg-background"
-          onChange={(e) => {
-            inputValue = Number(e.target.value);
-          }}
         />
         {unit && <span className="self-center text-xs">{unit}</span>}
-        <Button size="sm" onClick={() => onApply(inputValue)}>
+        <Button
+          size="sm"
+          disabled={pending}
+          onClick={() => {
+            setPending(true);
+
+            onSend(node, value).then((ok) => {
+              if (!ok) {
+                setPending(false);
+                return;
+              }
+
+              setTimeout(() => {
+                setPending(false);
+              }, 500);
+            });
+          }}
+        >
           Apply
         </Button>
       </div>
+
+      {pending && (
+        <span className="text-xs text-amber-500 mt-[-4px]">Pending confirmation…</span>
+      )}
     </div>
   );
 }
